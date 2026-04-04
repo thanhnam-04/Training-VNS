@@ -43,6 +43,15 @@ def get_all_cars():
         result = conn.execute(stmt)
         return result.fetchall()
 
+def get_cars_by_name(search_name: str):
+    """
+    Tìm xe theo tên chính xác
+    """
+    with engine.connect() as conn:
+        stmt = select(oto_table).where(oto_table.c.name == search_name)
+        result = conn.execute(stmt)
+        return result.fetchall()
+
 def load_from_json_and_save(json_filepath: str):
     """Đọc file json hiện tại và lưu vào DB"""
     try:
@@ -75,4 +84,9 @@ if __name__ == "__main__":
     print("\n--- Danh sách dữ liệu trong DB ---")
     cars = get_all_cars()
     for car in cars:
+        print(f"ID: {car.id} | Xe: {car.name} | Giá: {car.price}")
+
+    print("\n--- Danh sách xe Honda Civic Type R ---")
+    civics = get_cars_by_name("Honda Civic Type R")
+    for car in civics:
         print(f"ID: {car.id} | Xe: {car.name} | Giá: {car.price}")

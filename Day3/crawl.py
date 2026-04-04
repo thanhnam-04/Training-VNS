@@ -200,7 +200,7 @@ if __name__ == "__main__":
     items = asyncio.run(
         scrape_all(
             url="https://oto.com.vn/mua-ban-xe",   # đổi URL tùy ý
-            max_pages=3,
+            max_pages=20,
             headless=True,    # False = hiện browser để debug
             delay=(2.5, 4.5),
         )
