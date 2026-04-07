@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevBlog - FastAPI Postgres</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar-brand { font-weight: bold; letter-spacing: 1px; }
+        .post-card { margin-bottom: 20px; transition: transform 0.2s, box-shadow 0.2s; border: none; border-radius: 10px; }
+        .post-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.08); }
+        .hidden { display: none !important; }
+        .auth-card { border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        #alertContainer { position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="#"><i class="fas fa-blog text-primary me-2"></i>DevBlog</a>
+            <div class="d-flex align-items-center">
+                <span id="userInfo" class="navbar-text me-3 hidden text-white">
+                    <i class="fas fa-user-circle fs-5 me-1 align-middle"></i>
+                    <span id="usernameDisplay" class="fw-semibold"></span>
+                </span>
+                <button id="logoutBtn" class="btn btn-outline-light btn-sm hidden rounded-pill px-3" onclick="logout()">
+                    Đăng xuất
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Alert/Toast container -->
+        <div id="alertContainer"></div>
+
+        <!-- Auth Section -->
+        <div id="authSection" class="row justify-content-center mt-5">
+            <div class="col-md-5">
+                <div class="card auth-card">
+                    <!-- Nav Tabs -->
+                    <ul class="nav nav-tabs nav-justified" id="authTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold text-primary" id="login-tab" data-bs-toggle="tab" data-bs-target="#loginPane" type="button" role="tab" aria-controls="loginPane" aria-selected="true" style="padding: 15px;">ĐĂNG NHẬP</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-secondary" id="register-tab" data-bs-toggle="tab" data-bs-target="#registerPane" type="button" role="tab" aria-controls="registerPane" aria-selected="false" style="padding: 15px;">ĐĂNG KÝ</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content p-5" id="authTabsContent">
+                        <!-- Login Pane -->
+                        <div class="tab-pane fade show active" id="loginPane" role="tabpanel" aria-labelledby="login-tab">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-lock text-primary fs-1 mb-3"></i>
+                                <p class="text-muted small">Đăng nhập để đăng bài và tương tác</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label form-label-sm fw-semibold">Tên đăng nhập</label>
+                                <input type="text" class="form-control form-control-lg bg-light" id="username" placeholder="Nhập username...">
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label form-label-sm fw-semibold">Mật khẩu</label>
+                                <input type="password" class="form-control form-control-lg bg-light" id="password" placeholder="Nhập password...">
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary btn-lg rounded-pill" onclick="login()">Đăng Nhập</button>
+                            </div>
+                        </div>
+
+                        <!-- Register Pane -->
+                        <div class="tab-pane fade" id="registerPane" role="tabpanel" aria-labelledby="register-tab">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-user-plus text-primary fs-1 mb-3"></i>
+                                <p class="text-muted small">Tạo tài khoản mới</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label form-label-sm fw-semibold">Tên hiển thị (Họ và Tên)</label>
+                                <input type="text" class="form-control bg-light" id="regFullName" placeholder="Nguyễn Văn A">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label form-label-sm fw-semibold">Email</label>
+                                <input type="email" class="form-control bg-light" id="regEmail" placeholder="abc@gmail.com">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label form-label-sm fw-semibold">Tên đăng nhập</label>
+                                <input type="text" class="form-control bg-light" id="regUsername" placeholder="Username (viết liền không dấu)">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label form-label-sm fw-semibold">Mật khẩu</label>
+                                <input type="password" class="form-control bg-light" id="regPassword" placeholder="Nhập mật khẩu...">
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label form-label-sm fw-semibold">Xác nhận mật khẩu</label>
+                                <input type="password" class="form-control bg-light" id="regConfirmPassword" placeholder="Nhập lại mật khẩu...">
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success btn-lg rounded-pill" onclick="register()">Đăng Ký Tài Khoản</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Section -->
+        <div id="mainSection" class="hidden">
+            <div class="row">
+                <!-- Create Post Sidebar -->
+                <div class="col-lg-4 mb-4">
+                    <div class="card shadow-sm sticky-top border-0 rounded-4" style="top: 20px;">
+                        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                            <h5 class="card-title fw-bold mb-0"><i class="fas fa-pen-nib text-primary me-2"></i>Viết bài mới</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control form-control-lg bg-light border-0" id="postTitle" placeholder="Tiêu đề bài viết...">
+                            </div>
+                            <div class="mb-3">
+                                <label for="postImage" class="form-label text-muted small">Ảnh bài viết</label>
+                                <input type="file" class="form-control bg-light border-0" id="postImage" accept="image/*">
+                            </div>
+                            <div class="mb-3">
+                                <textarea class="form-control bg-light border-0" id="postContent" rows="6" placeholder="Nội dung bài viết của bạn..."></textarea>
+                            </div>
+                            <div class="form-check form-switch mb-4">
+                                <input class="form-check-input" type="checkbox" id="postPublish" checked>
+                                <label class="form-check-label text-muted">Xuất bản hiển thị public</label>
+                            </div>
+                            <div class="d-grid">
+                                <button class="btn btn-primary rounded-pill fw-semibold" onclick="createPost()">
+                                    <i class="fas fa-paper-plane me-2"></i>Đăng bài ngay
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feed -->
+                <div class="col-lg-8">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="fw-bold mb-0 text-dark">Bảng Tin</h4>
+                        <button class="btn btn-light btn-sm text-primary rounded-circle" onclick="fetchPosts()" title="Làm mới">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div id="postsList">
+                        <!-- Sẽ render bằng JS -->
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editPostModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-pen me-2"></i>Sửa bài viết</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editPostId">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tiêu đề</label>
+                        <input type="text" class="form-control" id="editPostTitle" placeholder="Nhập tiêu đề...">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Mô tả / Nội dung</label>
+                        <textarea class="form-control" id="editPostContent" rows="6" placeholder="Nhập mô tả..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="button" class="btn btn-primary" onclick="submitEditPost()">Lưu thay đổi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Base URL - Tự bắt domain hiện tại (dùng /api vì đã mount backend cùng port, hoặc host 8000)
+        let API_URL = "http://localhost:8000/api";
+        if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+           if (window.location.port !== '3000') {
+               API_URL = window.location.origin + "/api";  // Đang chạy bằng app.mount gốc
+           } else {
+               API_URL = window.location.protocol + "//" + window.location.hostname + ":8000/api";
+           }
+        }
+        
+        let token = localStorage.getItem("token");
+        let currentRole = localStorage.getItem("role");
+        let currentUserId = parseInt(localStorage.getItem("userId") || "0", 10);
+        let postsById = {};
+
+        async function fetchCurrentUserProfile() {
+            if (!token) return;
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const me = await res.json();
+                currentRole = me.role;
+                currentUserId = me.id;
+                localStorage.setItem("role", currentRole);
+                localStorage.setItem("userId", String(currentUserId));
+                localStorage.setItem("username", me.username);
+            } catch (e) {
+                // ignore profile fetch error and keep current local values
+            }
+        }
+
+        // Helper Box thông báo
+        function showAlert(message, type = 'success') {
+            const container = document.getElementById("alertContainer");
+            const alertId = 'alert-' + Date.now();
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'danger' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+            const html = `
+                <div id="${alertId}" class="alert alert-${type} shadow-sm alert-dismissible fade show" role="alert">
+                    <i class="fas ${icon} me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', html);
+            setTimeout(() => { 
+                const alertEl = document.getElementById(alertId);
+                if(alertEl) alertEl.remove();
+            }, 4000);
+        }
+        
+        async function fetchPosts() {
+            try {
+                const res = await fetch(`${API_URL}/posts/`);
+                const posts = await res.json();
+                const list = document.getElementById("postsList");
+                postsById = {};
+                posts.forEach(p => {
+                    postsById[p.id] = p;
+                });
+                
+                if (posts.length === 0) {
+                    list.innerHTML = `
+                        <div class="text-center py-5 text-muted bg-white rounded-4 shadow-sm">
+                            <i class="fas fa-inbox fs-1 mb-3 text-light"></i>
+                            <p>Không có bài viết nào! Hãy là người đầu tiên đăng bài.</p>
+                        </div>`;
+                    return;
+                }
+                
+                list.innerHTML = "";
+                posts.reverse().forEach(post => {
+                    const canManage = !!token && (currentRole === 'admin' || currentUserId === post.owner_id);
+                    const div = document.createElement("div");
+                    div.className = "card post-card";
+                    
+                    let imageSection = "";
+                    if(post.image_url) {
+                        imageSection = `<img src="${post.image_url}" class="card-img-top" alt="Cover Image" style="max-height: 400px; object-fit: cover;">`;
+                    }
+
+                    const comments = post.comments || [];
+                    const commentsHtml = comments.length
+                        ? comments.map(c => `
+                            <div class="small border rounded-3 p-2 mb-2 bg-light">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="fw-semibold text-dark">User #${c.author_id}</div>
+                                    ${(token && (currentRole === 'admin' || currentUserId === c.author_id))
+                                        ? `<button class="btn btn-sm btn-link text-danger p-0" onclick="deleteComment(${post.id}, ${c.id})">Xoá</button>`
+                                        : ''}
+                                </div>
+                                <div class="text-secondary">${c.content}</div>
+                            </div>
+                        `).join("")
+                        : `<div class="text-muted small">Chưa có bình luận nào.</div>`;
+                    
+                    div.innerHTML = `
+                        ${imageSection}
+                        <div class="card-body p-4">
+                            <h4 class="card-title fw-bold text-dark mb-1">${post.title}</h4>
+                            <div class="mb-3 text-muted small">
+                                <i class="fas fa-user-edit me-1"></i> Tác giả ID: #${post.owner_id}
+                                <span class="mx-2">•</span> <i class="fas fa-globe-asia"></i> Public
+                            </div>
+                            <p class="card-text text-secondary" style="white-space: pre-wrap; line-height: 1.6;">${post.content}</p>
+                            <div class="mt-4 pt-3 border-top">
+                                <div class="fw-semibold mb-2"><i class="fas fa-comments me-2"></i>Bình luận</div>
+                                <div class="mb-3">${commentsHtml}</div>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="comment-input-${post.id}" placeholder="Viết bình luận..." ${token ? "" : "disabled"}>
+                                    <button class="btn btn-outline-primary" onclick="addComment(${post.id})" ${token ? "" : "disabled"}>Gửi</button>
+                                </div>
+                            </div>
+                        </div>
+                        ${canManage ? `
+                        <div class="card-footer bg-transparent border-top p-3 text-end">
+                            <button class="btn btn-sm btn-light text-primary fw-semibold me-2" onclick="openEditPostModal(${post.id})">
+                                <i class="fas fa-pen me-1"></i>Sửa
+                            </button>
+                            <button class="btn btn-sm btn-light text-danger fw-semibold" onclick="deletePost(${post.id})">
+                                <i class="fas fa-trash-alt me-1"></i>Xoá
+                            </button>
+                        </div>` : ''}
+                    `;
+                    list.appendChild(div);
+                });
+            } catch (error) {
+                showAlert("Không tải được Data từ Backend", "danger");
+            }
+        }
+
+        async function createPost() {
+            if (!token) return showAlert("Cần đăng nhập!", "warning");
+            
+            const title = document.getElementById("postTitle").value.trim();
+            const content = document.getElementById("postContent").value.trim();
+            const is_published = document.getElementById("postPublish").checked;
+            const imageInput = document.getElementById("postImage");
+
+            if(!title || !content) return showAlert("Vui lòng nhập tiêu đề & nội dung", "warning");
+
+            try {
+                let image_url = null;
+                // Nếu có chọn ảnh thì upload ảnh trước
+                if (imageInput.files && imageInput.files[0]) {
+                    const formData = new FormData();
+                    formData.append("file", imageInput.files[0]);
+                    
+                    const upRes = await fetch(`${API_URL}/posts/upload-image`, {
+                        method: "POST",
+                        headers: { "Authorization": `Bearer ${token}` },
+                        body: formData
+                    });
+                    if(upRes.ok) {
+                        const upData = await upRes.json();
+                        image_url = upData.url;
+                    } else {
+                        showAlert("Lỗi upload ảnh", "danger");
+                        return;
+                    }
+                }
+
+                const res = await fetch(`${API_URL}/posts/`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                    body: JSON.stringify({ title, content, is_published, image_url })
+                });
+                
+                if (res.ok) {
+                    showAlert("Bài viết đã lên sóng!", "success");
+                    document.getElementById("postTitle").value = '';
+                    document.getElementById("postContent").value = '';
+                    document.getElementById("postImage").value = '';
+                    fetchPosts();
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail, "danger");
+                }
+            } catch(e) { showAlert("Lỗi kết nối", "danger"); }
+        }
+
+        async function addComment(postId) {
+            if (!token) return showAlert("Cần đăng nhập để bình luận", "warning");
+
+            const input = document.getElementById(`comment-input-${postId}`);
+            const content = input.value.trim();
+            if (!content) return showAlert("Nội dung bình luận đang trống", "warning");
+
+            try {
+                const res = await fetch(`${API_URL}/posts/${postId}/comments`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ content })
+                });
+
+                if (res.ok) {
+                    input.value = "";
+                    showAlert("Đã đăng bình luận", "success");
+                    fetchPosts();
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail || "Không thể đăng bình luận", "danger");
+                }
+            } catch (e) {
+                showAlert("Lỗi mạng khi gửi bình luận", "danger");
+            }
+        }
+
+        async function deleteComment(postId, commentId) {
+            if (!token) return showAlert("Cần đăng nhập", "warning");
+            if (!confirm("Xoá bình luận này?")) return;
+
+            try {
+                const res = await fetch(`${API_URL}/posts/${postId}/comments/${commentId}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    showAlert("Đã xoá bình luận", "success");
+                    fetchPosts();
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail || "Không thể xoá bình luận", "danger");
+                }
+            } catch (e) {
+                showAlert("Lỗi mạng khi xoá bình luận", "danger");
+            }
+        }
+
+        function openEditPostModal(postId) {
+            const post = postsById[postId];
+            if (!post) {
+                showAlert("Không tìm thấy dữ liệu bài viết để sửa", "danger");
+                return;
+            }
+
+            const title = post.title || "";
+            const content = post.content || "";
+            document.getElementById("editPostId").value = String(postId);
+            document.getElementById("editPostTitle").value = title;
+            document.getElementById("editPostContent").value = content;
+
+            const modalEl = document.getElementById("editPostModal");
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+
+        async function submitEditPost() {
+            if (!token) return showAlert("Cần đăng nhập", "warning");
+
+            const postId = parseInt(document.getElementById("editPostId").value, 10);
+            const newTitle = document.getElementById("editPostTitle").value.trim();
+            const newContent = document.getElementById("editPostContent").value.trim();
+
+            if (!postId || !newTitle || !newContent) {
+                return showAlert("Tiêu đề và nội dung không được để trống", "warning");
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/posts/${postId}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ title: newTitle, content: newContent })
+                });
+
+                if (res.ok) {
+                    const modalEl = document.getElementById("editPostModal");
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                    modal.hide();
+                    showAlert("Đã cập nhật bài viết", "success");
+                    fetchPosts();
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail || "Không thể cập nhật bài viết", "danger");
+                }
+            } catch (e) {
+                showAlert("Lỗi mạng khi cập nhật bài viết", "danger");
+            }
+        }
+
+        async function deletePost(id) {
+            if (!confirm("Xoá bài viết này vĩnh viễn?")) return;
+            try {
+                const res = await fetch(`${API_URL}/posts/${id}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    showAlert("Đã xoá thành công", "success");
+                    fetchPosts();
+                } else {
+                    const data = await res.json();
+                    showAlert("Lỗi: " + data.detail, "danger");
+                }
+            } catch(e) { showAlert("Lỗi mạng", "danger"); }
+        }
+
+        async function register() {
+            const fullName = document.getElementById("regFullName").value.trim();
+            const email = document.getElementById("regEmail").value.trim();
+            const username = document.getElementById("regUsername").value.trim();
+            const password = document.getElementById("regPassword").value.trim();
+            const confirmPass = document.getElementById("regConfirmPassword").value.trim();
+
+            if(!fullName || !email || !username || !password || !confirmPass) {
+                return showAlert("Vui lòng điền đủ thông tin đăng ký!", "warning");
+            }
+            if(password !== confirmPass) {
+                return showAlert("Mật khẩu xác nhận không khớp!", "danger");
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/auth/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        username: username, 
+                        email: email, 
+                        full_name: fullName, 
+                        password: password 
+                    })
+                });
+                if (res.ok) {
+                    showAlert("Tạo tài khoản thành công! Bạn có thể đăng nhập ngay.", "success");
+                    // Chuyển sang thẻ đăng nhập
+                    const loginTab = new bootstrap.Tab(document.getElementById('login-tab'));
+                    loginTab.show();
+                    // Tự động điền user name
+                    document.getElementById("username").value = username;
+                    document.getElementById("password").value = ''; // Yêu cầu nhập lại mật khẩu
+                } else { 
+                    const data = await res.json(); 
+                    showAlert(data.detail, "danger"); 
+                }
+            } catch(e) { showAlert("Lỗi server hoặc lỗi kết nối mạng", "danger"); }
+        }
+
+        async function login() {
+            const u = document.getElementById("username").value.trim();
+            const p = document.getElementById("password").value.trim();
+            if(!u || !p) return showAlert("Vui lòng điền đủ thông tin", "warning");
+
+            const params = new URLSearchParams();
+            params.append('username', u);
+            params.append('password', p);
+
+            try {
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: params
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    token = data.access_token;
+                    localStorage.setItem("token", token);
+                    await fetchCurrentUserProfile();
+
+                    showAlert("Welcome back!", "success");
+                    updateUI();
+                } else showAlert("Sai thông tin đăng nhập!", "danger");
+            } catch(e) { showAlert("Hệ thống mất kết nối", "danger"); }
+        }
+
+        function logout() {
+            localStorage.clear();
+            token = null;
+            currentRole = null;
+            currentUserId = 0;
+            updateUI();
+            showAlert("Đã tải xuất an toàn", "info");
+        }
+
+        async function updateUI() {
+            if (token) {
+                await fetchCurrentUserProfile();
+                document.getElementById("authSection").classList.add("hidden");
+                document.getElementById("mainSection").classList.remove("hidden");
+                document.getElementById("userInfo").classList.remove("hidden");
+                document.getElementById("logoutBtn").classList.remove("hidden");
+                
+                const roleText = (currentRole || 'user').toUpperCase();
+                const roleClass = currentRole === 'admin' ? 'bg-danger' : 'bg-secondary';
+                const badge = `<span class="badge ${roleClass} ms-2 rounded-pill">${roleText}</span>`;
+                document.getElementById("usernameDisplay").innerHTML = localStorage.getItem("username") + badge;
+                fetchPosts();
+            } else {
+                document.getElementById("authSection").classList.remove("hidden");
+                document.getElementById("mainSection").classList.add("hidden");
+                document.getElementById("userInfo").classList.add("hidden");
+                document.getElementById("logoutBtn").classList.add("hidden");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", updateUI);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
