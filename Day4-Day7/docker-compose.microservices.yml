@@ -1,0 +1,108 @@
+services:
+  auth-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: authdb
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d authdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  content-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: contentdb
+    volumes:
+      - content_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d contentdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  auth-service:
+    build:
+      context: ./microservices/auth_service
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@auth-db:5432/authdb
+      - SECRET_KEY=supper-secret-key-123
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    volumes:
+      - ./microservices/auth_service/app:/app/app
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  content-service:
+    build:
+      context: ./microservices/content_service
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@content-db:5432/contentdb
+      - AUTH_SERVICE_URL=http://auth-service:8001
+    depends_on:
+      content-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    volumes:
+      - ./microservices/content_service/app:/app/app
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ./microservices/gateway/Dockerfile
+    ports:
+      - "8000:8000"
+      - "3000:8000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - CONTENT_SERVICE_URL=http://content-service:8002
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
+    volumes:
+      - ./microservices/gateway/app:/app/app
+      - ./frontend:/app/frontend
+      - uploads_data:/app/uploads
+    networks:
+      - backend
+      - public
+
+volumes:
+  auth_postgres_data:
+  content_postgres_data:
+  uploads_data:
+
+networks:
+  backend:
+    internal: true
+  public:
