@@ -12,6 +12,7 @@ class ServiceClientError(Exception):
 
 
 def _auth_headers(request) -> dict[str, str]:
+    # Forward bearer token to downstream services to keep auth context.
     authorization = request.headers.get("Authorization", "")
     headers = {"Content-Type": "application/json"}
     if authorization:
@@ -20,6 +21,7 @@ def _auth_headers(request) -> dict[str, str]:
 
 
 def fetch_cart_snapshot(request) -> dict[str, Any]:
+    # Read cart snapshot before checkout so order data is frozen at checkout time.
     try:
         response = requests.get(
             f"{settings.CART_SERVICE_URL}/api/cart/",
@@ -36,6 +38,7 @@ def fetch_cart_snapshot(request) -> dict[str, Any]:
 
 
 def clear_cart(request) -> None:
+    # Clear cart only after order and order items are created successfully.
     try:
         response = requests.delete(
             f"{settings.CART_SERVICE_URL}/api/cart/clear/",
@@ -50,6 +53,7 @@ def clear_cart(request) -> None:
 
 
 def reserve_stock(request, items: list[dict[str, int]]) -> list[dict[str, Any]]:
+    # Reserve stock in inventory service to prevent overselling race conditions.
     payload = {"items": items}
     try:
         response = requests.post(
@@ -73,6 +77,7 @@ def reserve_stock(request, items: list[dict[str, int]]) -> list[dict[str, Any]]:
 
 
 def release_stock(request, items: list[dict[str, int]]) -> None:
+    # Compensating action used when checkout fails after stock reservation.
     payload = {"items": items}
     try:
         requests.post(

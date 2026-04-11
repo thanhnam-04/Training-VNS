@@ -1,67 +1,83 @@
 # ecommerce-microservices
 
-Kien truc duoc tach theo huong microservices:
+README này được viết thuần tiếng Việt để dễ đọc và dễ bàn giao.
+
+## 1. Kiến trúc hệ thống
+
+Hệ thống theo mô hình microservices, gồm các thành phần:
+
+- frontend: giao diện web (Nginx, cổng 3000)
+- api-gateway: định tuyến API (Nginx, cổng 8000)
+- user-service: xác thực, người dùng, JWT, cổng quản trị
+- product-service: kho hàng, sản phẩm, danh mục
+- cart-service: giỏ hàng
+- order-service: thanh toán và đơn hàng
+- notification-service: API thông báo và tra cứu trạng thái tác vụ
+- notification-worker, notification-beat: Celery worker/scheduler
+- db: PostgreSQL
+- redis: message broker/cache
+
+Tài liệu chi tiết: [docs/01-kien-truc-he-thong.md](docs/01-kien-truc-he-thong.md)
+
+## 2. Cấu trúc thư mục
 
 ```text
 ecommerce-microservices/
+├── api-gateway/
+├── frontend/
 ├── services/
 │   ├── user-service/
 │   ├── product-service/
 │   ├── cart-service/
 │   ├── order-service/
 │   └── notification-service/
-├── api-gateway/
-├── frontend/
+├── docs/
 ├── docker-compose.yml
-├── .env
+├── .env.example
 └── README.md
 ```
 
-## Mapping domain
+Tài liệu chi tiết: [docs/02-cau-truc-thu-muc.md](docs/02-cau-truc-thu-muc.md)
 
-- user-service: Auth, User, JWT, admin portal
-- product-service: Inventory, Product, Category
-- cart-service: Cart
-- order-service: Order, OrderItem, checkout orchestration
-- notification-service: Notification API
-- notification-worker/notification-beat: async jobs va scheduler cho notification
+## 3. Cách cài đặt
 
-## Luu y implementation
-
-- Tat ca service da co codebase rieng trong `services/*-service` va duoc build truc tiep tu folder service.
-- `order-service` goi service-to-service sang `cart-service` va `product-service` qua HTTP cho checkout.
-- API Gateway tiep nhan toan bo request tai cong `8000`.
-
-## Chay he thong
+1. Tạo file .env từ .env.example.
+2. Build và chạy hệ thống:
 
 ```bash
-cd N:\Training-VNS\Day8-Day12\ecommerce-microservices
-
-# Build + start
 docker compose up -d --build
-
-# Logs
-docker compose logs -f api-gateway
-docker compose logs -f order-service
-docker compose logs -f notification-worker
 ```
 
-## URL
+3. Kiểm tra trạng thái:
+
+```bash
+docker compose ps
+```
+
+Tài liệu chi tiết: [docs/03-cai-dat.md](docs/03-cai-dat.md)
+
+## 4. Cách chạy smoke test
+
+Smoke test gồm 5 nhóm: health check, auth, inventory, cart, checkout.
+
+Tài liệu chi tiết: [docs/04-smoke-test.md](docs/04-smoke-test.md)
+
+## 5. Link tài liệu md cho chức năng và API endpoint
+
+- Auth/User API: [docs/features/auth-api.md](docs/features/auth-api.md)
+- Inventory API: [docs/features/inventory-api.md](docs/features/inventory-api.md)
+- Cart API: [docs/features/cart-api.md](docs/features/cart-api.md)
+- Order/Checkout API: [docs/features/order-api.md](docs/features/order-api.md)
+- Notification API: [docs/features/notification-api.md](docs/features/notification-api.md)
+
+## URL nhanh
 
 - Frontend: http://localhost:3000
 - API Gateway: http://localhost:8000
-- Django Admin: http://localhost:8000/admin/
+- Admin: http://localhost:8000/admin/
 - Flower: http://localhost:5555
 
-## Health checks
-
-- http://localhost:8000/health/user
-- http://localhost:8000/health/product
-- http://localhost:8000/health/cart
-- http://localhost:8000/health/order
-- http://localhost:8000/health/notification
-
-## Tai khoan demo
+## Tài khoản demo
 
 - Admin: admin@shopvns.com / Admin@123
 - User: user@shopvns.com / User@123
