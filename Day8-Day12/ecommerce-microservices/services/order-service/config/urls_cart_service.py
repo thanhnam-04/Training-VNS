@@ -1,0 +1,8 @@
+from django.urls import include, path
+
+from config.health import health_view
+
+urlpatterns = [
+    path("health/", health_view, name="health"),
+    path("api/cart/", include("apps.cart.urls")),
+]
