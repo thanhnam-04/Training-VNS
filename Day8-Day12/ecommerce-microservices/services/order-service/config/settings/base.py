@@ -147,6 +147,8 @@ USE_X_FORWARDED_HOST = True
 
 # ── Email ───────────────────────────────────────────────────────────────────
 DEFAULT_FROM_EMAIL = "noreply@shopvns.com"
+_admin_order_emails = os.environ.get("ADMIN_ORDER_ALERT_EMAILS", "")
+ADMIN_ORDER_ALERT_EMAILS = [email.strip() for email in _admin_order_emails.split(",") if email.strip()]
 
 # ── Internal Service URLs (microservices) ──────────────────────────────────
 CART_SERVICE_URL = os.environ.get("CART_SERVICE_URL", "http://localhost:8000")

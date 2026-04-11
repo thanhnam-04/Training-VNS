@@ -10,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-key-change-in-production")
 
 INSTALLED_APPS = [
+    "jazzmin",
     # Django core
     "django.contrib.admin",
     "django.contrib.auth",
@@ -147,7 +148,56 @@ USE_X_FORWARDED_HOST = True
 
 # ── Email ───────────────────────────────────────────────────────────────────
 DEFAULT_FROM_EMAIL = "noreply@shopvns.com"
+_admin_order_emails = os.environ.get("ADMIN_ORDER_ALERT_EMAILS", "")
+ADMIN_ORDER_ALERT_EMAILS = [email.strip() for email in _admin_order_emails.split(",") if email.strip()]
 
 # ── Internal Service URLs (microservices) ──────────────────────────────────
 CART_SERVICE_URL = os.environ.get("CART_SERVICE_URL", "http://localhost:8000")
 INVENTORY_SERVICE_URL = os.environ.get("INVENTORY_SERVICE_URL", "http://localhost:8000")
+
+# ── Jazzmin Admin UI Settings ───────────────────────────────────────────────
+JAZZMIN_SETTINGS = {
+    "site_title": "ShopVNS Admin",
+    "site_header": "ShopVNS",
+    "site_brand": "ShopVNS Dashboard",
+    "welcome_sign": "Chào mừng đến với ShopVNS E-Commerce Dashboard",
+    "copyright": "ShopVNS Ltd",
+    "show_sidebar": True,
+    "navigation_expanded": True,
+    "hide_apps": ["django_celery_beat", "django_celery_results", "token_blacklist"],
+    "hide_models": [],
+    "icons": {
+        "users.User": "fas fa-users-cog",
+        "inventory.Product": "fas fa-box-open",
+        "inventory.Category": "fas fa-tags",
+        "orders.Order": "fas fa-shopping-cart",
+        "cart.Cart": "fas fa-shopping-basket",
+    },
+    "default_icon_parents": "fas fa-chevron-circle-right",
+    "default_icon_children": "fas fa-circle",
+    "related_modal_active": False,
+    "custom_css": None,
+    "custom_js": None,
+    "use_google_fonts_cdn": True,
+    "show_ui_builder": True,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "navbar": "navbar-white navbar-light",
+    "theme": "default",
+    "sidebar": "sidebar-dark-primary",
+    "sidebar_nav_child_indent": True,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
+    "theme_color": "default",
+    "accent": "accent-primary",
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    }
+}

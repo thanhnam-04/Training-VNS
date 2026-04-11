@@ -5,9 +5,8 @@ Demo: list_display, list_filter, search_fields, inline, actions, readonly_fields
 import csv
 from django.contrib import admin
 from django.http import HttpResponse
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, F, DecimalField, ExpressionWrapper
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 from .models import Category, Tag, Supplier, Product, StockMovement
 
 
@@ -24,6 +23,12 @@ def export_as_csv(modeladmin, request, queryset):
     return response
 
 export_as_csv.short_description = "📥 Xuất CSV"
+
+# Giảm rủi ro thao tác nhầm trên danh sách.
+admin.site.disable_action("delete_selected")
+admin.site.site_header = "VNS E-commerce Admin"
+admin.site.site_title = "VNS Admin"
+admin.site.index_title = "Bảng điều khiển quản trị"
 
 
 @admin.register(Category)
@@ -69,7 +74,7 @@ class SupplierAdmin(admin.ModelAdmin):
 class StockMovementInline(admin.TabularInline):
     """Inline biến động kho trong trang Product"""
     model = StockMovement
-    extra = 1
+    extra = 0
     fields = ["movement_type", "quantity", "note", "created_by", "created_at"]
     readonly_fields = ["created_at"]
     classes = ["collapse"]
@@ -93,16 +98,17 @@ class LowStockFilter(admin.SimpleListFilter):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ["thumbnail", "name", "sku", "category", "price_display",
-                    "stock_display", "status_badge", "is_featured", "updated_at"]
+                    "stock", "min_stock", "stock_display", "status_badge", "is_featured", "updated_at"]
     list_filter = ["status", "category", "is_featured", LowStockFilter, "created_at"]
     search_fields = ["name", "sku", "description"]
-    list_editable = ["is_featured"]
+    list_editable = ["stock", "min_stock", "is_featured"]
     prepopulated_fields = {"slug": ("name",)}
     filter_horizontal = ["tags"]
     readonly_fields = ["profit_margin", "created_at", "updated_at", "thumbnail"]
-    actions = [export_as_csv, "mark_featured", "mark_inactive"]
+    actions = [export_as_csv]
     inlines = [StockMovementInline]
     list_per_page = 25
+    change_list_template = "admin/inventory/product/change_list.html"
 
     fieldsets = (
         ("Thông tin cơ bản", {
@@ -150,19 +156,34 @@ class ProductAdmin(admin.ModelAdmin):
         )
     status_badge.short_description = "Trạng thái"
 
-    @admin.action(description="⭐ Đánh dấu nổi bật")
-    def mark_featured(self, request, queryset):
-        updated = queryset.update(is_featured=True)
-        self.message_user(request, f"✅ Đã đánh dấu {updated} sản phẩm nổi bật.")
-
-    @admin.action(description="🚫 Ngừng bán")
-    def mark_inactive(self, request, queryset):
-        updated = queryset.update(status=Product.Status.INACTIVE)
-        self.message_user(request, f"⛔ Đã ngừng bán {updated} sản phẩm.")
-
     def get_queryset(self, request):
         # ORM nâng cao: select_related tránh N+1
         return super().get_queryset(request).select_related("category", "supplier")
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        stats = self.get_queryset(request).aggregate(
+            total_products=Count("id"),
+            active_products=Count("id", filter=Q(status=Product.Status.ACTIVE)),
+            low_stock_products=Count("id", filter=Q(stock__gt=0, stock__lte=F("min_stock"))),
+            out_of_stock_products=Count("id", filter=Q(stock=0)),
+            total_units=Sum("stock"),
+            total_inventory_value=Sum(
+                ExpressionWrapper(
+                    F("stock") * F("price"),
+                    output_field=DecimalField(max_digits=18, decimal_places=0),
+                )
+            ),
+        )
+        extra_context["product_stats"] = {
+            "total_products": stats["total_products"] or 0,
+            "active_products": stats["active_products"] or 0,
+            "low_stock_products": stats["low_stock_products"] or 0,
+            "out_of_stock_products": stats["out_of_stock_products"] or 0,
+            "total_units": stats["total_units"] or 0,
+            "total_inventory_value": f"{int(stats['total_inventory_value'] or 0):,}",
+        }
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(StockMovement)
@@ -180,3 +201,6 @@ class StockMovementAdmin(admin.ModelAdmin):
         sign = "+" if obj.quantity > 0 else ""
         return format_html('<span style="color:{};font-weight:bold">{}{}</span>', color, sign, obj.quantity)
     quantity_display.short_description = "Số lượng"
+
+    def has_delete_permission(self, request, obj=None):
+        return False

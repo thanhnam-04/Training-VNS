@@ -1,0 +1,242 @@
+/* Modernizing Django Admin */
+
+:root {
+    --primary: #4F46E5; /* Indigo 600 */
+    --hover: #4338CA;
+    --bg: #F3F4F6;
+    --sidebar-bg: #1F2937; /* Gray 800 */
+    --sidebar-text: #E5E7EB;
+    --text-color: #111827;
+    --border: #E5E7EB;
+    --btn-primary: #10B981; /* Emerald 500 */
+    --btn-danger: #EF4444;  /* Red 500 */
+    --surface: #FFFFFF;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text-color);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+}
+
+/* Header */
+#header {
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    padding: 12px 20px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#branding h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    color: #fff;
+}
+
+#branding h1 a {
+    color: #fff;
+}
+
+#user-tools {
+    font-weight: 500;
+}
+#user-tools a {
+    color: #9CA3AF;
+    transition: color 0.2s;
+}
+#user-tools a:hover {
+    color: #fff;
+    border-bottom: 1px solid #fff;
+}
+
+/* Breadcrumbs */
+div.breadcrumbs {
+    background: var(--surface);
+    padding: 12px 20px;
+    color: #6B7280;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 500;
+}
+div.breadcrumbs a {
+    color: var(--primary);
+    text-decoration: none;
+}
+div.breadcrumbs a:hover {
+    text-decoration: underline;
+}
+
+/* Main Content & Dashboard */
+#content {
+    background: var(--surface);
+    margin: 20px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1);
+    padding: 20px;
+    border: 1px solid var(--border);
+}
+.module {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    box-shadow: none;
+}
+.module h2, .module caption, .inline-group h2 {
+    background: var(--surface);
+    color: #374151;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+th, td {
+    padding: 12px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+}
+thead th {
+    background: #F9FAFB;
+    font-weight: 600;
+    color: #4B5563;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+tbody tr:hover {
+    background: #F3F4F6;
+}
+tbody tr.row1 { background-color: #ffffff; }
+tbody tr.row2 { background-color: #F9FAFB; }
+
+/* Buttons */
+.button, input[type=submit], input[type=button], .submit-row input, a.button {
+    background: var(--primary);
+    color: white;
+    border-radius: 6px;
+    padding: 8px 16px;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    height: auto;
+    line-height: normal;
+}
+.button:hover, input[type=submit]:hover, input[type=button]:hover, a.button:hover {
+    background: var(--hover);
+}
+.button.default, input[type=submit].default, .submit-row input.default {
+    background: var(--btn-primary);
+}
+.button.default:hover, input[type=submit].default:hover {
+    background: #059669;
+}
+.button.deletelink, a.deletelink {
+    background-color: transparent !important;
+    color: var(--btn-danger);
+}
+.button.deletelink:hover, a.deletelink:hover {
+    background-color: transparent !important;
+    text-decoration: underline;
+}
+
+/* Forms & Inputs */
+input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], input[type=tel], select, textarea {
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 8px 12px;
+    width: 100%;
+    max-width: 400px;
+    font-family: inherit;
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+input[type=text]:focus, input[type=password]:focus, select:focus, textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+/* Side navigation (if enabled in Django 4+) */
+#nav-sidebar {
+    background: var(--sidebar-bg);
+    border-right: none;
+}
+#nav-sidebar .module th {
+    background: transparent;
+}
+#nav-sidebar th, #nav-sidebar td, #nav-sidebar a {
+    color: #9CA3AF;
+}
+#nav-sidebar a:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.05);
+}
+#nav-sidebar .current-app .section:caption {
+    color: #fff;
+}
+#nav-sidebar .current-model {
+    background: rgba(79, 70, 229, 0.5);
+    border-radius: 4px;
+}
+#nav-sidebar .current-model a {
+    color: #fff;
+}
+
+/* Object Tools (Add button top right) */
+.object-tools {
+    margin-top: -5px;
+}
+.object-tools a.addlink {
+    background: var(--primary);
+    border-radius: 6px;
+    padding: 8px 16px;
+    display: inline-flex;
+    align-items: center;
+    font-weight: 500;
+}
+.object-tools a.addlink:before {
+    content: '+';
+    margin-right: 6px;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* Messages/Alerts */
+ul.messagelist li {
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+ul.messagelist li.success {
+    background: #DEF7EC;
+    color: #065F46;
+    border-left: 4px solid #10B981;
+}
+ul.messagelist li.error {
+    background: #FDE8E8;
+    color: #991B1B;
+    border-left: 4px solid #EF4444;
+}
+ul.messagelist li.warning {
+    background: #FEF3C7;
+    color: #92400E;
+    border-left: 4px solid #F59E0B;
+}

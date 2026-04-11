@@ -1,5 +1,11 @@
 from django.contrib import admin
+from datetime import timedelta
+from django.utils import timezone
+from django.db.models import Count, Sum, Q
+from django.db.models.functions import TruncDate
 from django.utils.html import format_html
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from .models import Order, OrderItem
 
 
@@ -27,6 +33,18 @@ class OrderAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     list_per_page = 25
     actions = ["mark_as_confirmed", "mark_as_delivered"]
+    change_list_template = "admin/orders/order/change_list.html"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "stats/",
+                self.admin_site.admin_view(self.stats_view),
+                name="orders_order_stats",
+            ),
+        ]
+        return custom_urls + urls
 
     def save_model(self, request, obj, form, change):
         """Trigger email khi Admin đổi trạng thái thủ công (qua form hoặc list_editable)"""
@@ -92,3 +110,139 @@ class OrderAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("user")
+
+    def _quick_links_context(self):
+        today = timezone.localdate()
+        tomorrow = today + timedelta(days=1)
+        changelist_url = reverse("admin:orders_order_changelist")
+        return {
+            "orders_stats_url": reverse("admin:orders_order_stats"),
+            "orders_pending_url": f"{changelist_url}?status__exact={Order.Status.PENDING}",
+            "orders_unpaid_url": f"{changelist_url}?is_paid__exact=0",
+            "orders_today_url": (
+                f"{changelist_url}?created_at__gte={today.isoformat()}&created_at__lt={tomorrow.isoformat()}"
+            ),
+            "orders_delivered_url": f"{changelist_url}?status__exact={Order.Status.DELIVERED}",
+            "orders_all_url": changelist_url,
+        }
+
+    def _build_analytics_context(self, queryset):
+        today = timezone.localdate()
+        week_start = today - timedelta(days=6)
+        month_start = today.replace(day=1)
+
+        non_cancelled = queryset.exclude(status=Order.Status.CANCELLED)
+        delivered = queryset.filter(status=Order.Status.DELIVERED)
+        paid_non_cancelled = queryset.filter(is_paid=True).exclude(status=Order.Status.CANCELLED)
+
+        order_stats = queryset.aggregate(
+            total_orders=Count("id"),
+            paid_orders=Count("id", filter=Q(is_paid=True)),
+            cancelled_orders=Count("id", filter=Q(status=Order.Status.CANCELLED)),
+        )
+        total_revenue = non_cancelled.aggregate(value=Sum("total_amount"))["value"] or 0
+        delivered_revenue = delivered.aggregate(value=Sum("total_amount"))["value"] or 0
+        paid_revenue = paid_non_cancelled.aggregate(value=Sum("total_amount"))["value"] or 0
+        revenue_today = non_cancelled.filter(created_at__date=today).aggregate(value=Sum("total_amount"))["value"] or 0
+        revenue_month = non_cancelled.filter(created_at__date__gte=month_start).aggregate(value=Sum("total_amount"))["value"] or 0
+
+        non_cancelled_count = non_cancelled.count()
+        avg_order_value = int(total_revenue / non_cancelled_count) if non_cancelled_count else 0
+
+        total_orders = order_stats["total_orders"] or 0
+        cancelled_orders = order_stats["cancelled_orders"] or 0
+        cancellation_rate = round((cancelled_orders / total_orders) * 100, 1) if total_orders else 0
+
+        payment_rows_raw = list(
+            paid_non_cancelled.values("payment_method")
+            .annotate(orders=Count("id"), revenue=Sum("total_amount"))
+            .order_by("-revenue")
+        )
+        payment_label_map = dict(Order.PaymentMethod.choices)
+        payment_rows = [
+            {
+                "label": payment_label_map.get(row["payment_method"], row["payment_method"]),
+                "orders": row["orders"],
+                "revenue": f"{int(row['revenue'] or 0):,}",
+            }
+            for row in payment_rows_raw
+        ]
+
+        daily_rows_raw = list(
+            non_cancelled.filter(created_at__date__gte=week_start)
+            .annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(orders=Count("id"), revenue=Sum("total_amount"))
+            .order_by("day")
+        )
+        daily_map = {row["day"]: row for row in daily_rows_raw}
+        daily_rows = []
+        for offset in range(0, 7):
+            day = week_start + timedelta(days=offset)
+            row = daily_map.get(day, {"orders": 0, "revenue": 0})
+            daily_rows.append(
+                {
+                    "day": day.strftime("%d/%m"),
+                    "orders": row["orders"] or 0,
+                    "revenue": f"{int(row['revenue'] or 0):,}",
+                }
+            )
+
+        status_counts = dict(
+            queryset.values("status").annotate(count=Count("id")).values_list("status", "count")
+        )
+        status_rows = [
+            {
+                "label": label,
+                "count": status_counts.get(code, 0),
+            }
+            for code, label in Order.Status.choices
+        ]
+
+        return {
+            "total_orders": total_orders,
+            "paid_orders": order_stats["paid_orders"] or 0,
+            "cancelled_orders": cancelled_orders,
+            "cancellation_rate": cancellation_rate,
+            "total_revenue": f"{int(total_revenue):,}",
+            "paid_revenue": f"{int(paid_revenue):,}",
+            "delivered_revenue": f"{int(delivered_revenue):,}",
+            "revenue_today": f"{int(revenue_today):,}",
+            "revenue_month": f"{int(revenue_month):,}",
+            "avg_order_value": f"{avg_order_value:,}",
+            "order_status_rows": status_rows,
+            "order_payment_rows": payment_rows,
+            "order_daily_rows": daily_rows,
+        }
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context.update(self._quick_links_context())
+        response = super().changelist_view(request, extra_context=extra_context)
+        return response
+
+    def stats_view(self, request):
+        base_qs = self.get_queryset(request)
+        analytics = self._build_analytics_context(base_qs)
+        context = {
+            **self.admin_site.each_context(request),
+            **self._quick_links_context(),
+            "opts": self.model._meta,
+            "title": "Thống kê doanh thu đơn hàng",
+            "order_kpis": {
+                "total_orders": analytics["total_orders"],
+                "paid_orders": analytics["paid_orders"],
+                "cancelled_orders": analytics["cancelled_orders"],
+                "cancellation_rate": analytics["cancellation_rate"],
+                "total_revenue": analytics["total_revenue"],
+                "paid_revenue": analytics["paid_revenue"],
+                "delivered_revenue": analytics["delivered_revenue"],
+                "revenue_today": analytics["revenue_today"],
+                "revenue_month": analytics["revenue_month"],
+                "avg_order_value": analytics["avg_order_value"],
+            },
+            "order_status_rows": analytics["order_status_rows"],
+            "order_payment_rows": analytics["order_payment_rows"],
+            "order_daily_rows": analytics["order_daily_rows"],
+        }
+        return TemplateResponse(request, "admin/orders/order/stats.html", context)

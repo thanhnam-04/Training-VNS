@@ -1,0 +1,138 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Trang chủ</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{{ orders_all_url }}">Đơn hàng</a>
+  &rsaquo; Thống kê doanh thu
+</div>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <h1>Thống kê doanh thu đơn hàng</h1>
+
+    <div class="object-tools">
+      <ul class="object-tools">
+        <li>
+          <a href="{{ orders_all_url }}" class="admin-tool-btn">Quay lại đơn hàng</a>
+        </li>
+        <li>
+          <a href="{{ orders_pending_url }}" class="admin-tool-btn">Đơn chờ xác nhận</a>
+        </li>
+        <li>
+          <a href="{{ orders_unpaid_url }}" class="admin-tool-btn">Đơn chưa thanh toán</a>
+        </li>
+        <li>
+          <a href="{{ orders_today_url }}" class="admin-tool-btn">Đơn hôm nay</a>
+        </li>
+      </ul>
+    </div>
+
+    <section class="admin-stats-grid" aria-label="Chỉ số đơn hàng">
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Tổng đơn hàng</p>
+        <p class="admin-stat-value">{{ order_kpis.total_orders }}</p>
+      </article>
+      <article class="admin-stat-card success">
+        <p class="admin-stat-label">Doanh thu tổng</p>
+        <p class="admin-stat-value">{{ order_kpis.total_revenue }} VNĐ</p>
+      </article>
+      <article class="admin-stat-card success">
+        <p class="admin-stat-label">Doanh thu đã thanh toán</p>
+        <p class="admin-stat-value">{{ order_kpis.paid_revenue }} VNĐ</p>
+      </article>
+      <article class="admin-stat-card success">
+        <p class="admin-stat-label">Doanh thu đã giao</p>
+        <p class="admin-stat-value">{{ order_kpis.delivered_revenue }} VNĐ</p>
+      </article>
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Doanh thu hôm nay</p>
+        <p class="admin-stat-value">{{ order_kpis.revenue_today }} VNĐ</p>
+      </article>
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Doanh thu tháng này</p>
+        <p class="admin-stat-value">{{ order_kpis.revenue_month }} VNĐ</p>
+      </article>
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Giá trị TB/đơn</p>
+        <p class="admin-stat-value">{{ order_kpis.avg_order_value }} VNĐ</p>
+      </article>
+      <article class="admin-stat-card warning">
+        <p class="admin-stat-label">Tỷ lệ hủy</p>
+        <p class="admin-stat-value">{{ order_kpis.cancellation_rate }}%</p>
+      </article>
+    </section>
+
+    <section class="admin-analytics-grid" aria-label="Thống kê chi tiết">
+      <article class="admin-analytics-card">
+        <h2>Trạng thái đơn hàng</h2>
+        <table class="admin-analytics-table">
+          <thead>
+            <tr>
+              <th>Trạng thái</th>
+              <th>Số đơn</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in order_status_rows %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+
+      <article class="admin-analytics-card">
+        <h2>Doanh thu theo thanh toán</h2>
+        <table class="admin-analytics-table">
+          <thead>
+            <tr>
+              <th>Phương thức</th>
+              <th>Số đơn</th>
+              <th>Doanh thu</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in order_payment_rows %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.orders }}</td>
+                <td>{{ row.revenue }} VNĐ</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3">Chưa có đơn đã thanh toán.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+
+      <article class="admin-analytics-card span-2">
+        <h2>Xu hướng 7 ngày gần nhất</h2>
+        <table class="admin-analytics-table">
+          <thead>
+            <tr>
+              <th>Ngày</th>
+              <th>Số đơn</th>
+              <th>Doanh thu</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in order_daily_rows %}
+              <tr>
+                <td>{{ row.day }}</td>
+                <td>{{ row.orders }}</td>
+                <td>{{ row.revenue }} VNĐ</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    </section>
+  </div>
+{% endblock %}

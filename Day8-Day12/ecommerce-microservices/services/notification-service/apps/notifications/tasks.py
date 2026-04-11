@@ -5,9 +5,28 @@ Demo: gửi email async, xử lý ảnh, cập nhật stock
 from celery import shared_task
 from django.core.mail import send_mail
 from django.conf import settings
+from django.utils import timezone
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _get_admin_recipients():
+    configured = [email for email in getattr(settings, "ADMIN_ORDER_ALERT_EMAILS", []) if email]
+    if not configured and getattr(settings, "EMAIL_HOST_USER", ""):
+        configured = [settings.EMAIL_HOST_USER]
+    if configured:
+        return list(dict.fromkeys(configured))
+
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    staff_emails = User.objects.filter(
+        is_staff=True,
+        is_active=True,
+        email__isnull=False,
+    ).exclude(email="").values_list("email", flat=True)
+    return list(dict.fromkeys(staff_emails))
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
@@ -64,6 +83,62 @@ Trân trọng,
 
     except Exception as exc:
         logger.error(f"❌ Lỗi gửi email đơn #{order_id}: {exc}")
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def send_new_order_admin_email(self, order_id: int):
+    """Task: Gửi email thông báo đơn hàng mới tới admin"""
+    from apps.orders.models import Order
+
+    try:
+        order = Order.objects.select_related("user").prefetch_related("items").get(pk=order_id)
+        admin_emails = _get_admin_recipients()
+        if not admin_emails:
+            logger.warning("⚠️ Bỏ qua gửi mail đơn mới: không có email admin")
+            return {"status": "no_admin_recipients", "order_id": order_id}
+
+        items_text = "\n".join(
+            [
+                f"  - {item.product_name} x{item.quantity}: {item.subtotal:,.0f} ₫"
+                for item in order.items.all()
+            ]
+        )
+        created_at_text = timezone.localtime(order.created_at).strftime("%d/%m/%Y %H:%M")
+
+        message = f"""
+Đơn hàng mới vừa được tạo trên hệ thống ShopVNS.
+
+Mã đơn: #{order.order_number}
+Thời gian: {created_at_text}
+Khách hàng: {order.user.email}
+Người nhận: {order.shipping_name} - {order.shipping_phone}
+Địa chỉ: {order.shipping_address}
+Thanh toán: {order.get_payment_method_display()}
+
+CHI TIẾT SẢN PHẨM:
+{items_text}
+
+Tạm tính: {order.subtotal:,.0f} ₫
+Phí giao: {order.shipping_fee:,.0f} ₫
+Tổng cộng: {order.total_amount:,.0f} ₫
+        """.strip()
+
+        send_mail(
+            subject=f"[ShopVNS][Admin] Đơn hàng mới #{order.order_number}",
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=admin_emails,
+            fail_silently=False,
+        )
+        logger.info(f"✅ Đã gửi email đơn mới #{order.order_number} tới admin: {admin_emails}")
+        return {"status": "sent", "order_number": order.order_number, "recipients": admin_emails}
+
+    except Order.DoesNotExist:
+        logger.warning(f"⚠️ Bỏ qua gửi mail đơn mới: đơn #{order_id} không tồn tại")
+        return {"status": "order_not_found", "order_id": order_id}
+    except Exception as exc:
+        logger.error(f"❌ Lỗi gửi email admin cho đơn #{order_id}: {exc}")
         raise self.retry(exc=exc)
 
 

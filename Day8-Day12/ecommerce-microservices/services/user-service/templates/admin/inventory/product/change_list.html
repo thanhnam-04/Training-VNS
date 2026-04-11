@@ -1,0 +1,42 @@
+{% extends "admin/change_list.html" %}
+
+{% block content_title %}
+  <h1>Quản lý sản phẩm</h1>
+{% endblock %}
+
+{% block result_list %}
+  {% if product_stats %}
+    <section class="admin-stats-grid" aria-label="Thống kê sản phẩm">
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Tổng sản phẩm</p>
+        <p class="admin-stat-value">{{ product_stats.total_products }}</p>
+      </article>
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Đang bán</p>
+        <p class="admin-stat-value">{{ product_stats.active_products }}</p>
+      </article>
+      <article class="admin-stat-card warning">
+        <p class="admin-stat-label">Sắp hết hàng</p>
+        <p class="admin-stat-value">{{ product_stats.low_stock_products }}</p>
+      </article>
+      <article class="admin-stat-card danger">
+        <p class="admin-stat-label">Hết hàng</p>
+        <p class="admin-stat-value">{{ product_stats.out_of_stock_products }}</p>
+      </article>
+      <article class="admin-stat-card">
+        <p class="admin-stat-label">Tổng tồn kho</p>
+        <p class="admin-stat-value">{{ product_stats.total_units }}</p>
+      </article>
+      <article class="admin-stat-card success">
+        <p class="admin-stat-label">Giá trị tồn kho</p>
+        <p class="admin-stat-value">{{ product_stats.total_inventory_value }} VNĐ</p>
+      </article>
+    </section>
+  {% endif %}
+
+  <section class="admin-quick-help" aria-label="Gợi ý thao tác">
+    <strong>Lưu ý:</strong> Chỉ bật/tắt cột "Nổi bật" và chỉnh tồn kho trực tiếp trong bảng. Các thao tác ngừng bán hoặc xóa hàng loạt đã được ẩn để tránh thao tác nhầm.
+  </section>
+
+  {{ block.super }}
+{% endblock %}

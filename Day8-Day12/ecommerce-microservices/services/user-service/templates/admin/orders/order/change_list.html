@@ -1,0 +1,32 @@
+{% extends "admin/change_list.html" %}
+
+{% block content_title %}
+  <h1>Quản lý đơn hàng</h1>
+{% endblock %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{{ orders_stats_url }}" class="admin-tool-btn">Thống kê doanh thu</a>
+  </li>
+  <li>
+    <a href="{{ orders_pending_url }}" class="admin-tool-btn">Đơn chờ xác nhận</a>
+  </li>
+  <li>
+    <a href="{{ orders_unpaid_url }}" class="admin-tool-btn">Đơn chưa thanh toán</a>
+  </li>
+  <li>
+    <a href="{{ orders_today_url }}" class="admin-tool-btn">Đơn hôm nay</a>
+  </li>
+  <li>
+    <a href="{{ orders_delivered_url }}" class="admin-tool-btn">Đơn đã giao</a>
+  </li>
+  {{ block.super }}
+{% endblock %}
+
+{% block content %}
+  <section class="admin-quick-help" aria-label="Điều hướng nhanh">
+    <strong>Thao tác nhanh:</strong> Dùng các nút phía trên để lọc nhanh đơn hàng hoặc mở màn hình thống kê doanh thu riêng.
+  </section>
+
+  {{ block.super }}
+{% endblock %}

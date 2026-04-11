@@ -19,8 +19,9 @@ def order_created_signal(sender, instance, created, **kwargs):
     if created:
         logger.info(f"📦 [Signal] Đơn hàng mới: #{instance.order_number}")
         try:
-            from .tasks import send_order_confirmation_email
+            from .tasks import send_order_confirmation_email, send_new_order_admin_email
             transaction.on_commit(lambda: send_order_confirmation_email.delay(instance.id))
+            transaction.on_commit(lambda: send_new_order_admin_email.delay(instance.id))
         except Exception as e:
             logger.warning(f"Celery chưa sẵn sàng: {e}")
 
