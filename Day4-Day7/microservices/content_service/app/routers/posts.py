@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import admin_role_checker, get_current_user
 from app.models.post import Comment, Post
 from app.schemas import CommentCreate, CommentResponse, CurrentUser, PostCreate, PostResponse, PostUpdate
 
@@ -79,8 +79,8 @@ async def update_post(
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
 
-    if current_user.role != "admin" and post.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Operation not permitted")
+    # Owner can update own post; admin can update any post.
+    admin_role_checker.ensure_owner_or_allowed(current_user=current_user, owner_id=post.owner_id)
 
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(post, key, value)
@@ -104,8 +104,8 @@ async def delete_post(
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
 
-    if current_user.role != "admin" and post.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Operation not permitted")
+    # Owner can delete own post; admin can delete any post.
+    admin_role_checker.ensure_owner_or_allowed(current_user=current_user, owner_id=post.owner_id)
 
     await db.delete(post)
     await db.commit()
@@ -156,8 +156,8 @@ async def delete_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
 
-    if current_user.role != "admin" and comment.author_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Operation not permitted")
+    # Author can delete own comment; admin can delete any comment.
+    admin_role_checker.ensure_owner_or_allowed(current_user=current_user, owner_id=comment.author_id)
 
     await db.delete(comment)
     await db.commit()

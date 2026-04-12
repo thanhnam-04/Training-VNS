@@ -1,14 +1,20 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.core.dependencies import get_current_user
 from app.core.database import get_db
-from app.core.security import create_access_token, decode_token, get_password_hash, verify_password
+from app.core.rbac import RoleChecker
+from app.core.roles import UserRole
+from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User
-from app.schemas import Token, TokenValidationResponse, UserCreate, UserResponse
+from app.schemas import Token, TokenValidationResponse, UserCreate, UserResponse, UserRoleUpdate
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
+
+require_admin = RoleChecker([UserRole.ADMIN])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -22,7 +28,8 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user_count = await db.execute(select(User))
-    role = "admin" if not user_count.scalars().first() else "user"
+    # Bootstrap policy: first account becomes admin, others default to user.
+    role = UserRole.ADMIN.value if not user_count.scalars().first() else UserRole.USER.value
 
     new_user = User(
         username=user.username,
@@ -53,38 +60,44 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(authorization: str = Header(default=""), db: AsyncSession = Depends(get_db)):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-
-    token = authorization.removeprefix("Bearer ").strip()
-    payload = decode_token(token)
-    username = payload.get("sub")
-    if not username:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
-    return user
+async def me(current_user: User = Depends(get_current_user)):
+    return current_user
 
 
 @router.get("/internal/validate-token", response_model=TokenValidationResponse)
-async def validate_token(authorization: str = Header(default=""), db: AsyncSession = Depends(get_db)):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
+async def validate_token(current_user: User = Depends(get_current_user)):
+    return {"id": current_user.id, "username": current_user.username, "role": current_user.role}
 
-    token = authorization.removeprefix("Bearer ").strip()
-    payload = decode_token(token)
-    username = payload.get("sub")
-    if not username:
-        raise HTTPException(status_code=401, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+@router.get("/users", response_model=list[UserResponse])
+async def list_users(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+    result = await db.execute(select(User).order_by(User.id.asc()))
+    return result.scalars().all()
 
-    return {"id": user.id, "username": user.username, "role": user.role}
+
+@router.patch("/users/{user_id}/role", response_model=UserResponse)
+async def update_user_role(
+    user_id: int,
+    payload: UserRoleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalars().first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    next_role = payload.role.value
+    if target_user.id == current_admin.id and next_role != UserRole.ADMIN.value:
+        raise HTTPException(status_code=400, detail="Cannot remove admin role from yourself")
+
+    if target_user.role == UserRole.ADMIN.value and next_role != UserRole.ADMIN.value:
+        admin_count_result = await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.ADMIN.value))
+        admin_count = admin_count_result.scalar_one()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="At least one admin account is required")
+
+    target_user.role = next_role
+    await db.commit()
+    await db.refresh(target_user)
+    return target_user

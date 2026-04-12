@@ -1,149 +1,124 @@
-# Day4-Day7 - Blog API (2 Kien Truc: Monolith va Microservices)
+# Day4-Day7 - Blog Backend API (Microservices)
 
-Project nay co 2 cach trien khai:
+README này tập trung vào backend microservices và 5 phần chính để học, triển khai, kiểm thử API.
 
-- Kien truc 1: Monolith (app FastAPI duy nhat)
-- Kien truc 2: Microservices (auth/content/gateway tach rieng)
+## 1. Kiến trúc hệ thống
 
-README nay mo ta ro ca 2 mo hinh de ban chon cach chay phu hop.
+Project triển khai theo kiến trúc backend microservices:
 
-## 1. Kien truc Monolith (app/)
+- auth-service + content-service + api-gateway + 2 PostgreSQL riêng.
 
-Mo ta:
+Sơ đồ nhanh:
 
-- 1 service backend FastAPI trong thu muc app/
-- 1 database PostgreSQL blogdb
-- Frontend static duoc phuc vu cung backend
+- Microservices: Client -> Gateway -> Auth/Content services -> PostgreSQL
 
-Luong request:
+Tài liệu chi tiết:
 
-Client -> FastAPI app (localhost:8000 hoac localhost:3000) -> PostgreSQL (blogdb)
+- [docs/01-kien-truc-he-thong.md](docs/01-kien-truc-he-thong.md)
 
-Compose file:
+## 2. Cấu trúc thư mục
 
-- docker-compose.yml
+Thư mục quan trọng trong Day4-Day7:
 
-Chay monolith (tai thu muc Day4-Day7):
+- microservices/: source auth-service, content-service, gateway
+- frontend/: giao diện static, được gateway phục vụ tại /
+- uploads/: nơi lưu file upload
+- docker-compose.microservices.yml: chạy microservices
+
+Tài liệu chi tiết:
+
+- [docs/02-cau-truc-thu-muc.md](docs/02-cau-truc-thu-muc.md)
+
+## 3. Cách cài đặt
+
+Yêu cầu:
+
+- Docker Desktop
+- Docker Compose v2
+
+Khởi động microservices:
+
+- Lệnh chạy: docker compose -f docker-compose.microservices.yml up -d --build
+
+Tài liệu cài đặt đầy đủ:
+
+- [docs/03-cai-dat.md](docs/03-cai-dat.md)
+
+## Tài khoản mẫu (admin và user)
+
+Hệ thống đang dùng quy tắc bootstrap role:
+
+- Tài khoản đăng ký đầu tiên sẽ là admin.
+- Các tài khoản đăng ký sau sẽ là user.
+
+Tài khoản mẫu đề xuất để test:
+
+- Admin:
+	- username: admin_demo
+	- email: admin_demo@example.com
+	- password: Admin@123
+- User:
+	- username: user_demo
+	- email: user_demo@example.com
+	- password: User@123
+
+Luồng tạo mẫu nhanh:
+
+1. Đăng ký admin_demo trước.
+2. Đăng ký user_demo sau.
+3. Đăng nhập từng tài khoản qua API login để lấy token kiểm thử.
+
+Lưu ý:
+
+- Nếu bạn đã có dữ liệu cũ trong database thì admin có thể không phải tài khoản admin_demo.
+- Muốn tạo lại đúng cặp mẫu admin/user, cần reset volume database rồi đăng ký lại theo đúng thứ tự trên.
+
+Nâng quyền nhanh lên admin (không cần reset DB):
 
 ```bash
-docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.microservices.yml exec -T auth-db psql -U postgres -d authdb -c "UPDATE users SET role='admin' WHERE username='admin_demo';"
 ```
 
-Dung monolith:
+Kiểm tra lại role qua API:
 
-```bash
-docker compose -f docker-compose.yml ps
-docker compose -f docker-compose.yml down
-docker compose -f docker-compose.yml down -v
-```
+1. Đăng nhập bằng `admin_demo`.
+2. Gọi `GET /api/auth/me` với Bearer token vừa nhận.
+3. Xác nhận trường `role` là `admin`.
 
-## 2. Kien truc Microservices (microservices/)
+## 4. Cách chạy smoke test
 
-Mo ta:
+Smoke test tối thiểu cần xác nhận:
 
-- auth-service: dang ky, dang nhap, xac thuc token
-- content-service: CRUD post, comment, upload image
-- api-gateway: route request tu client sang auth/content
-- 2 database rieng: auth-db (authdb), content-db (contentdb)
+- Container lên trạng thái healthy/up
+- /docs trả về HTTP 200
+- Đăng ký -> Đăng nhập -> Lấy profile me
+- Tạo post -> Lấy danh sách post
 
-Luong request:
+Tài liệu và lệnh test mẫu:
 
-Client -> API Gateway (localhost:8000 hoac localhost:3000)
--> Auth Service (internal:8001) + Content Service (internal:8002)
--> PostgreSQL (authdb, contentdb)
+- [docs/04-smoke-test.md](docs/04-smoke-test.md)
 
-Compose file:
+## 5. Tài liệu chức năng và API endpoint
 
-- docker-compose.microservices.yml
+Quyền admin hiện có thể:
 
-Chay microservices (tai thu muc Day4-Day7):
-
-```bash
-docker compose -f docker-compose.microservices.yml up -d --build
-```
-
-Dung microservices:
-
-```bash
-docker compose -f docker-compose.microservices.yml ps
-docker compose -f docker-compose.microservices.yml down
-docker compose -f docker-compose.microservices.yml down -v
-```
-
-## URL truy cap (ca 2 mo hinh)
-
-- Frontend: http://localhost:8000
-- Alias frontend: http://localhost:3000
-- Swagger docs: http://localhost:8000/docs
-
-## Ket qua test thuc te
-
-Da test thanh cong voi kien truc microservices:
-
-- Build va start full stack thanh cong
-- Tat ca container len trang thai Up/Healthy
-- Gateway /docs tra ve HTTP 200
-- Luong E2E qua gateway:
-  - Dang ky user
-  - Dang nhap lay access token
-  - Goi /api/auth/me voi Bearer token
-  - Tao bai viet qua /api/posts/
-  - Lay danh sach bai viet qua /api/posts/
-
-## API chinh (goi qua gateway hoac monolith)
+- Xem danh sách user
+- Cấp role admin/user cho user khác
 
 Auth:
 
-- POST /api/auth/register
-- POST /api/auth/login
-- GET /api/auth/me
+- [docs/features/auth-api.md](docs/features/auth-api.md)
 
 Posts:
 
-- GET /api/posts/
-- POST /api/posts/
-- PUT /api/posts/{post_id}
-- DELETE /api/posts/{post_id}
-- POST /api/posts/upload-image
+- [docs/features/posts-api.md](docs/features/posts-api.md)
 
 Comments:
 
-- GET /api/posts/{post_id}/comments
-- POST /api/posts/{post_id}/comments
-- DELETE /api/posts/{post_id}/comments/{comment_id}
+- [docs/features/comments-api.md](docs/features/comments-api.md)
 
-## Auth flow
+## URL mặc định
 
-1. Dang ky: POST /api/auth/register
-2. Dang nhap: POST /api/auth/login
-3. Truyen token cho API can dang nhap:
-
-```http
-Authorization: Bearer <access_token>
-```
-
-## Luu y quan trong
-
-- Endpoint noi bo /api/auth/internal/* chi dung trong microservices va bi chan o gateway.
-- Health endpoint cua auth/content chi dung noi bo cho Docker healthcheck.
-- Upload file duoc luu qua volume (microservices) hoac thu muc uploads (monolith).
-
-## Troubleshooting nhanh
-
-Neu build fail gateway voi loi khong tim thay requirements.txt:
-
-- Kiem tra microservices/gateway/Dockerfile copy dung duong dan theo build context.
-
-Xem log microservices:
-
-```bash
-docker compose -f docker-compose.microservices.yml logs -f api-gateway
-docker compose -f docker-compose.microservices.yml logs -f auth-service
-docker compose -f docker-compose.microservices.yml logs -f content-service
-```
-
-Xem log monolith:
-
-```bash
-docker compose -f docker-compose.yml logs -f web
-```
+- API Gateway: http://localhost:8000
+- Alias frontend: http://localhost:3000
+- Swagger docs (qua gateway): http://localhost:8000/docs

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevBlog - Quan ly User</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .hidden { display: none !important; }
+        #alertContainer { position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px; }
+        .admin-card { border: none; border-radius: 14px; }
+        .admin-table th, .admin-table td { vertical-align: middle; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-blog text-primary me-2"></i>DevBlog</a>
+            <div class="d-flex align-items-center ms-auto">
+                <a class="btn btn-outline-light btn-sm rounded-pill px-3 me-2" href="/">
+                    <i class="fas fa-house me-1"></i>Ve bang tin
+                </a>
+                <span id="userInfo" class="navbar-text me-3 text-white hidden">
+                    <i class="fas fa-user-circle fs-5 me-1 align-middle"></i>
+                    <span id="usernameDisplay" class="fw-semibold"></span>
+                </span>
+                <button id="logoutBtn" class="btn btn-outline-light btn-sm rounded-pill px-3 hidden" onclick="logout()">
+                    Dang xuat
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="alertContainer"></div>
+
+        <div class="card admin-card shadow-sm mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-danger">
+                    <i class="fas fa-user-shield me-2"></i>Quan ly nguoi dung (Admin)
+                </h5>
+                <button class="btn btn-sm btn-outline-danger" onclick="loadAdminUsers()">
+                    <i class="fas fa-rotate me-1"></i>Lam moi
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover admin-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role hien tai</th>
+                                <th>Cap role</th>
+                                <th>Hanh dong</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTbody">
+                            <tr><td colspan="6" class="text-center text-muted py-3">Dang tai du lieu user...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let API_URL = "http://localhost:8000/api";
+        if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+            if (window.location.port !== '3000') {
+                API_URL = window.location.origin + "/api";
+            } else {
+                API_URL = window.location.protocol + "//" + window.location.hostname + ":8000/api";
+            }
+        }
+
+        let token = localStorage.getItem("token");
+        let currentRole = localStorage.getItem("role");
+        let currentUserId = parseInt(localStorage.getItem("userId") || "0", 10);
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return "";
+            return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function roleBadge(role) {
+            const safeRole = role === "admin" ? "admin" : "user";
+            const roleClass = safeRole === "admin" ? "bg-danger" : "bg-secondary";
+            return `<span class="badge ${roleClass} rounded-pill">${safeRole.toUpperCase()}</span>`;
+        }
+
+        function showAlert(message, type = "success") {
+            const container = document.getElementById("alertContainer");
+            const alertId = "alert-" + Date.now();
+            const icon = type === "success" ? "fa-check-circle" : type === "danger" ? "fa-exclamation-triangle" : "fa-info-circle";
+            const html = `
+                <div id="${alertId}" class="alert alert-${type} shadow-sm alert-dismissible fade show" role="alert">
+                    <i class="fas ${icon} me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>`;
+            container.insertAdjacentHTML("beforeend", html);
+            setTimeout(() => {
+                const alertEl = document.getElementById(alertId);
+                if (alertEl) alertEl.remove();
+            }, 3000);
+        }
+
+        async function fetchCurrentUserProfile() {
+            if (!token) return null;
+            const res = await fetch(`${API_URL}/auth/me`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (!res.ok) return null;
+
+            const me = await res.json();
+            currentRole = me.role;
+            currentUserId = me.id;
+            localStorage.setItem("role", currentRole);
+            localStorage.setItem("userId", String(currentUserId));
+            localStorage.setItem("username", me.username);
+            return me;
+        }
+
+        async function loadAdminUsers() {
+            if (!token || currentRole !== "admin") return;
+            const tbody = document.getElementById("adminUsersTbody");
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">Dang tai du lieu user...</td></tr>`;
+
+            try {
+                const res = await fetch(`${API_URL}/auth/users`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.detail || "Khong tai duoc danh sach user");
+                }
+
+                const users = await res.json();
+                if (!Array.isArray(users) || users.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">Chua co user nao.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = users.map(user => {
+                    const safeUsername = escapeHtml(user.username);
+                    const safeEmail = escapeHtml(user.email || "-");
+                    const selfText = user.id === currentUserId ? " <span class='text-primary small'>(Ban)</span>" : "";
+                    return `
+                        <tr>
+                            <td>#${user.id}</td>
+                            <td class="fw-semibold">${safeUsername}${selfText}</td>
+                            <td>${safeEmail}</td>
+                            <td>${roleBadge(user.role)}</td>
+                            <td style="width: 160px;">
+                                <select class="form-select form-select-sm" id="role-select-${user.id}">
+                                    <option value="user" ${user.role === "user" ? "selected" : ""}>USER</option>
+                                    <option value="admin" ${user.role === "admin" ? "selected" : ""}>ADMIN</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="applyUserRole(${user.id})">
+                                    Cap nhat
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join("");
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">${escapeHtml(error.message || "Loi tai du lieu")}</td></tr>`;
+            }
+        }
+
+        async function applyUserRole(userId) {
+            if (!token || currentRole !== "admin") {
+                showAlert("Ban khong co quyen admin", "danger");
+                return;
+            }
+
+            const selectEl = document.getElementById(`role-select-${userId}`);
+            if (!selectEl) return;
+            const nextRole = selectEl.value;
+
+            try {
+                const res = await fetch(`${API_URL}/auth/users/${userId}/role`, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ role: nextRole })
+                });
+
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.detail || "Khong cap nhat duoc role");
+                }
+
+                const updated = await res.json();
+                showAlert(`Da cap nhat ${updated.username} thanh ${updated.role}`, "success");
+                await loadAdminUsers();
+            } catch (error) {
+                showAlert(error.message || "Loi cap nhat role", "danger");
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = "/";
+        }
+
+        async function initPage() {
+            if (!token) {
+                window.location.href = "/";
+                return;
+            }
+
+            try {
+                const me = await fetchCurrentUserProfile();
+                if (!me || me.role !== "admin") {
+                    showAlert("Chi admin moi truy cap duoc trang nay", "danger");
+                    setTimeout(() => {
+                        window.location.href = "/";
+                    }, 700);
+                    return;
+                }
+
+                document.getElementById("userInfo").classList.remove("hidden");
+                document.getElementById("logoutBtn").classList.remove("hidden");
+                document.getElementById("usernameDisplay").innerHTML = `${escapeHtml(me.username)} <span class="badge bg-danger ms-2 rounded-pill">ADMIN</span>`;
+                await loadAdminUsers();
+            } catch (e) {
+                showAlert("Loi xac thuc tai khoan", "danger");
+                setTimeout(() => {
+                    window.location.href = "/";
+                }, 700);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", initPage);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

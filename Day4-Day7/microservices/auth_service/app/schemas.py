@@ -1,6 +1,8 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 
+from app.core.roles import UserRole
+
 
 class UserCreate(BaseModel):
     username: str
@@ -29,3 +31,7 @@ class TokenValidationResponse(BaseModel):
     id: int
     username: str
     role: str
+
+
+class UserRoleUpdate(BaseModel):
+    role: UserRole

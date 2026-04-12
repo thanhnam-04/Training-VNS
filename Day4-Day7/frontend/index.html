@@ -16,6 +16,8 @@
         .hidden { display: none !important; }
         .auth-card { border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         #alertContainer { position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px; }
+        .admin-card { border: none; border-radius: 14px; }
+        .admin-table th, .admin-table td { vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -23,7 +25,10 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
         <div class="container">
             <a class="navbar-brand" href="#"><i class="fas fa-blog text-primary me-2"></i>DevBlog</a>
-            <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center ms-auto">
+                <button id="adminTopBtn" class="btn btn-warning btn-sm rounded-pill px-3 me-2 hidden" onclick="goToAdminPage()">
+                    <i class="fas fa-user-shield me-1"></i>Quản lý user
+                </button>
                 <span id="userInfo" class="navbar-text me-3 hidden text-white">
                     <i class="fas fa-user-circle fs-5 me-1 align-middle"></i>
                     <span id="usernameDisplay" class="fw-semibold"></span>
@@ -149,6 +154,7 @@
                             <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>
+
                     <div id="postsList">
                         <!-- Sẽ render bằng JS -->
                         <div class="text-center py-5">
@@ -201,6 +207,16 @@
         let currentRole = localStorage.getItem("role");
         let currentUserId = parseInt(localStorage.getItem("userId") || "0", 10);
         let postsById = {};
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return "";
+            return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
 
         async function fetchCurrentUserProfile() {
             if (!token) return;
@@ -558,6 +574,11 @@
             } catch(e) { showAlert("Hệ thống mất kết nối", "danger"); }
         }
 
+        function goToAdminPage() {
+            if (currentRole !== 'admin') return;
+            window.location.href = "/admin.html";
+        }
+
         function logout() {
             localStorage.clear();
             token = null;
@@ -574,17 +595,24 @@
                 document.getElementById("mainSection").classList.remove("hidden");
                 document.getElementById("userInfo").classList.remove("hidden");
                 document.getElementById("logoutBtn").classList.remove("hidden");
+                const adminTopBtn = document.getElementById("adminTopBtn");
                 
                 const roleText = (currentRole || 'user').toUpperCase();
                 const roleClass = currentRole === 'admin' ? 'bg-danger' : 'bg-secondary';
                 const badge = `<span class="badge ${roleClass} ms-2 rounded-pill">${roleText}</span>`;
                 document.getElementById("usernameDisplay").innerHTML = localStorage.getItem("username") + badge;
+                if (currentRole === 'admin') {
+                    adminTopBtn.classList.remove("hidden");
+                } else {
+                    adminTopBtn.classList.add("hidden");
+                }
                 fetchPosts();
             } else {
                 document.getElementById("authSection").classList.remove("hidden");
                 document.getElementById("mainSection").classList.add("hidden");
                 document.getElementById("userInfo").classList.add("hidden");
                 document.getElementById("logoutBtn").classList.add("hidden");
+                document.getElementById("adminTopBtn").classList.add("hidden");
             }
         }
 
